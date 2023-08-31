@@ -10,16 +10,41 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MySpbPogodaParser {
-    static String url="https://pogoda.spb.ru";
-    static Pattern patternForDate=Pattern.compile("\\d{2}\\.\\d{2}");
-    static boolean locker=false;
+    private String url = "https://pogoda.spb.ru";
+    // regExp = 01.01
+    private final Pattern patternForDate = Pattern.compile("\\d{2}\\.\\d{2}");
 
-    private static Document getPage() throws IOException {
-        Document page = Jsoup.parse(new URL(url), 3000);
+     // the first night must be skipped
+
+    private boolean locker = false;
+
+    private final Queue<String> queueDate = new PriorityQueue<>();
+    /**
+     * key - name day
+     * value - data day
+     */
+    private final Map<String, String[]> mapDay = new TreeMap<>();
+    /**
+     * Key - Date from future queueDate
+     * Value - mapDay
+     */
+    private final Map<String, Map<String, String[]>> WeatherMap = new TreeMap<>();
+
+
+    // Помещаем в документ содержимое ссылки, которая разбивает и группирует его элементы
+    // при помощи класса Jsoup
+    private Document getPage() {
+        Document page = null;
+        try {
+            page = Jsoup.parse(new URL(url), 3000);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return page;
     }
 
-    private static String getStringfromDate(String stringDate) throws Exception {
+    // Ищем на странице совпадение по паттерну
+    private String getStringfromDate(String stringDate) throws Exception {
         Matcher matcher = patternForDate.matcher(stringDate);
         if (matcher.find()) {
             return matcher.group();
@@ -27,37 +52,50 @@ public class MySpbPogodaParser {
         throw new Exception("Can not format string to date");
     }
 
-
-    public static void main(String[] args) throws Exception {
-
-        Document page=getPage();
+    public void runApi() {
+        Document page = getPage();
         Element tableWth = page.select("table[class=wt]").first();
         Elements hight = tableWth.select("tr[class=wth]");
         Elements values = tableWth.select("tr[valign=top]");
 
-        Queue<String> queue=new PriorityQueue<>();
-        Map<String,Map<String,String[]>> pogodaMap=new TreeMap<>();
-        Map<String, String[]> mapDay = new TreeMap<>();
+        fillDateQueue(hight);
+        fillWeatherMap(values);
+        printWeekDayWeather(WeatherMap);
 
-        for (Element hightName : hight) {
-            String date = getStringfromDate(hightName.select("th[id=dt]").text());
-            queue.add(date);
+    }
+
+    private void fillDateQueue(Elements hight) {
+        try {
+            for (Element hightName : hight) {
+                String date = getStringfromDate(hightName.select("th[id=dt]").text());
+                queueDate.add(date);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+    }
 
+    private void fillWeatherMap(Elements values) {
         for (Element valuesName : values) {
-
-            if (values.get(0).text().contains("Ночь") && !locker) {locker=true; continue;}
-            Elements el=valuesName.select("td");
+            // пропускаем первую ночь, эта разовая проверка
+            if (values.get(0).text().contains("Ночь") && !locker) {
+                locker = true;
+                continue;
+            }
+            // собираем данные по столбцам строки
+            Elements el = valuesName.select("td");
 
             if (el.get(0).text().contains("Ночь")) {
-                mapDay.put(el.get(0).text(),new String[]{el.get(1).text(),el.get(2).text(),el.get(5).text()});
-                pogodaMap.put(queue.poll(), new TreeMap<>(mapDay) );
+                mapDay.put(el.get(0).text(), new String[]{el.get(1).text(), el.get(2).text(), el.get(5).text()});
+                WeatherMap.put(queueDate.poll(), new TreeMap<>(mapDay));
                 mapDay.clear();
             }
-            mapDay.put(el.get(0).text(),new String[]{el.get(1).text(),el.get(2).text(),el.get(5).text()});
+            mapDay.put(el.get(0).text(), new String[]{el.get(1).text(), el.get(2).text(), el.get(5).text()});
         }
+    }
 
-        for (Map.Entry<String, Map<String, String[]>> entry:pogodaMap.entrySet()) {
+    private void printWeekDayWeather(Map<String, Map<String, String[]>> weatherMap) {
+        for (Map.Entry<String, Map<String, String[]>> entry : weatherMap.entrySet()) {
             System.out.println("Дата: " + entry.getKey());
             System.out.println("Утро");
             System.out.println(Arrays.toString(entry.getValue().get("Утро")));
@@ -69,6 +107,5 @@ public class MySpbPogodaParser {
             System.out.println(Arrays.toString(entry.getValue().get("Ночь")));
             System.out.println("******************************************************");
         }
-
     }
 }
