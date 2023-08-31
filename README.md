@@ -1,6 +1,7 @@
 # PogodaParser
 
-Парсил сайт: https://pogoda.spb.ru/
+Парсил сайт: https://pogoda.spb.ru/  
+Цель: вывести данные за неделю. Взять нужные колонки, игнорируя неинтересные 
 
   ![image](https://github.com/RHONT/PogodaParser/assets/96048104/e0cdeefe-7497-4f00-8676-72d1c5161151)
 
